@@ -1,0 +1,63 @@
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: gt_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: globetrotter
+      MYSQL_USER: gt_user
+      MYSQL_PASSWORD: gt_pass
+    ports:
+      - "3307:3306"
+    command: ["mysqld", "--default-authentication-plugin=mysql_native_password"]
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  postgres:
+    image: postgres:16
+    container_name: gt_postgres
+    environment:
+      POSTGRES_USER: gt_user
+      POSTGRES_PASSWORD: gt_pass
+      POSTGRES_DB: globetrotter
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  flyway:
+    image: flyway/flyway:10
+    container_name: gt_flyway
+    depends_on:
+      - postgres
+    volumes:
+      - ./flyway/sql:/flyway/sql
+      - ./flyway/conf:/flyway/conf
+    command: ["-configFiles=/flyway/conf/flyway.conf", "migrate"]
+
+  app_faker:
+    image: python:3.12-slim
+    container_name: gt_app_faker
+    depends_on:
+      - mysql
+    volumes:
+      - ./app_faker:/app
+    working_dir: /app
+    command: ["sh", "-c", "pip install -q faker mysql-connector-python && python faker_traffic.py"]
+
+  app_cdc:
+    image: python:3.12-slim
+    container_name: gt_app_cdc
+    depends_on:
+      - mysql
+      - postgres
+    volumes:
+      - ./app_cdc:/app
+    working_dir: /app
+    command: ["sh", "-c", "pip install -q mysql-connector-python psycopg2-binary && python cdc_replication.py"]
+
+volumes:
+  mysql_data:
+  pg_data:
